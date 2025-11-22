@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::RwLock;
 use async_trait::async_trait;
+use crate::base62;
 
 #[async_trait]
 pub trait Storage: Send + Sync + 'static {
@@ -36,7 +37,7 @@ impl Storage for MemoryStorage {
 
         // TODO: Convert 'id' (u64) to Base62 (String)
 
-        let id_string = id.to_string();
+        let id_string = base62::encode(id);
 
         let mut map = self.data.write().await;
 

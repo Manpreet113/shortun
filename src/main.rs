@@ -1,4 +1,5 @@
 mod storage;
+mod base62;
 use storage::{MemoryStorage, Storage};
 use axum::{
     extract::{State, Path},
