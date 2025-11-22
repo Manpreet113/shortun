@@ -11,6 +11,10 @@ use serde::{Deserialize, Serialize};
 mod db;
 use db::PostgresStorage;
 use url::Url;
+mod error;
+use error::AppError;
+use dotenvy::dotenv;
+use std::env;
 
 #[derive(Deserialize)]
 struct CreateRequest{
@@ -22,25 +26,26 @@ struct CreateResponse{
     slug: String,
 }
 
-async fn create_slug(State(storage): State<PostgresStorage>, Json(payload): Json<CreateRequest>) -> impl IntoResponse{
+async fn create_slug(State(storage): State<PostgresStorage>, Json(payload): Json<CreateRequest>) -> Result<impl IntoResponse, AppError>{
 
-    let valid_url = match validate_and_sanitize_url(&payload.url) {
-        Ok(url) => url,
-        Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(), 
-    };
+    let valid_url = validate_and_sanitize_url(&payload.url)
+        .map_err(AppError::BadRequest)?;
 
-    let id = storage.shorten(&valid_url).await;
+    let id = storage.shorten(&valid_url).await?;
 
     let slug = format!("http://localhost:3000/{}", id);
 
     let response = CreateResponse {slug};
-    (StatusCode::CREATED, Json(response)).into_response()
+    Ok((StatusCode::CREATED, Json(response)).into_response())
 }
 
-async fn redirect(State(storage): State<PostgresStorage>, Path(id): Path<String>) -> impl IntoResponse{
-    match storage.get_url(&id).await {
-        Some(url) => Redirect::permanent(&url).into_response(),
-        None => (StatusCode::NOT_FOUND, "URL Not Found!" ).into_response(), 
+async fn redirect(State(storage): State<PostgresStorage>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError>{
+
+    let url_option = storage.get_url(&id).await?;
+
+    match url_option {
+        Some(url) => Ok(Redirect::permanent(&url).into_response()),
+        None => Err(AppError::NotFound),
     }
 }
 
@@ -62,13 +67,21 @@ fn validate_and_sanitize_url(raw_url: &str) -> Result<String, String> {
 
 #[tokio::main]
 async fn main(){
-    let db_url = "postgres://postgres:mysecretpassword@localhost:5432/postgres";
-    let storage = PostgresStorage::new(db_url).await;
+
+    dotenv().ok();
+
+    let db_url = env::var("DATABASE_URL")
+        .expect("DATABASE_URL must be set in .env file");
+
+    let port = env::var("PORT")
+        .unwrap_or_else(|_| "3000".to_string());
+
+    let storage = PostgresStorage::new(&db_url).await;
 
     let app = Router::new().route("/", post(create_slug)).route("/:id", get(redirect)).with_state(storage);
 
-    let listner = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listner = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await.unwrap();
 
-    print!("Server chalu at http://0.0.0.0:3000");
+    print!("Server chalu at http://0.0.0.0:{}", port);
     axum::serve(listner, app).await.unwrap();
 }

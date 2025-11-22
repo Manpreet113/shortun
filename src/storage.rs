@@ -1,10 +1,9 @@
 use async_trait::async_trait;
+use crate::error::AppError;
 
 #[async_trait]
 pub trait Storage: Send + Sync + 'static {
-    // Takes a long URL, returns the ID (e.g., "100")
-    async fn shorten(&self, url: &str) -> String;
+    async fn shorten(&self, url: &str) -> Result<String, AppError>;
 
-    // Takes an ID, returns the long URL if it exists
-    async fn get_url(&self, id: &str) -> Option<String>;
+    async fn get_url(&self, id: &str) -> Result<Option<String>, AppError>;
 }
