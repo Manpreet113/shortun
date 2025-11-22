@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tokio = { version = "1", features = ["full"] } # The async runtime
+axum = "0.7"                                   # The web framework
+serde = { version = "1", features = ["derive"] } # JSON serialization
+async-trait = "0.1"                            # Makes async interfaces easy
