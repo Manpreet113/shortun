@@ -44,13 +44,30 @@ impl Storage for PostgresStorage {
             Err(_) => return Ok(None),
         };
 
-        let row = sqlx::query("SELECT url FROM urls WHERE id = $1")
+        let row = sqlx::query("UPDATE urls SET clicks = clicks + 1 WHERE id = $1 RETURNING url")
             .bind(id_num as i64)
             .fetch_optional(&self.pool)
             .await?;
 
         match row {
             Some(r) => Ok(Some(r.try_get("url")?)),
+            None => Ok(None),
+        }
+    }
+    
+    async fn get_stats(&self, id: &str) -> Result<Option<i64>, AppError> {
+        let id_num = match base62::decode(id) {
+            Ok(n) => n,
+            Err(_) => return Ok(None),
+        };
+
+        let row = sqlx::query("SELECT clicks FROM urls WHERE id = $1")
+            .bind(id_num as i64)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        match row {
+            Some(r) => Ok(Some(r.try_get("clicks")?)),
             None => Ok(None),
         }
     }

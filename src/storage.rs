@@ -6,4 +6,6 @@ pub trait Storage: Send + Sync + 'static {
     async fn shorten(&self, url: &str) -> Result<String, AppError>;
 
     async fn get_url(&self, id: &str) -> Result<Option<String>, AppError>;
+
+    async fn get_stats(&self, id: &str) -> Result<Option<i64>, AppError>;
 }

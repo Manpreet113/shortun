@@ -65,6 +65,23 @@ fn validate_and_sanitize_url(raw_url: &str) -> Result<String, String> {
     Ok(parsed.to_string())
 }
 
+#[derive(Serialize)]
+struct StatsResponse {
+    clicks: i64,
+}
+
+async fn get_url_stats(
+    State(storage): State<PostgresStorage>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    match storage.get_stats(&id).await? {
+        Some(clicks) => Ok(Json(StatsResponse { clicks })),
+        None => Err(AppError::NotFound),
+    }
+}
+
+
+
 #[tokio::main]
 async fn main(){
 
@@ -78,7 +95,7 @@ async fn main(){
 
     let storage = PostgresStorage::new(&db_url).await;
 
-    let app = Router::new().route("/", post(create_slug)).route("/:id", get(redirect)).with_state(storage);
+    let app = Router::new().route("/", post(create_slug)).route("/:id", get(redirect)).route("/:id/stats", get(get_url_stats)).with_state(storage);
 
     let listner = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await.unwrap();
 
