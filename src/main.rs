@@ -6,6 +6,7 @@ use axum::{
     routing::{get, post},
     Json, Router, response::{IntoResponse, Redirect},
     http::StatusCode,
+    http::Method,
 };
 use serde::{Deserialize, Serialize};
 mod db;
@@ -15,6 +16,7 @@ mod error;
 use error::AppError;
 use dotenvy::dotenv;
 use std::env;
+use tower_http::cors::{CorsLayer, Any};
 
 #[derive(Deserialize)]
 struct CreateRequest{
@@ -87,6 +89,11 @@ async fn main(){
 
     dotenv().ok();
 
+    let cors = CorsLayer::new()
+    .allow_origin(Any)
+    .allow_methods([Method::GET, Method::POST])
+    .allow_headers(Any);
+
     let db_url = env::var("DATABASE_URL")
         .expect("DATABASE_URL must be set in .env file");
 
@@ -95,7 +102,7 @@ async fn main(){
 
     let storage = PostgresStorage::new(&db_url).await;
 
-    let app = Router::new().route("/", post(create_slug)).route("/:id", get(redirect)).route("/:id/stats", get(get_url_stats)).with_state(storage);
+    let app = Router::new().route("/", post(create_slug)).route("/:id", get(redirect)).route("/:id/stats", get(get_url_stats)).with_state(storage).layer(cors);
 
     let listner = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await.unwrap();
 
