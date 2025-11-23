@@ -1,0 +1,6 @@
+-- migrations/20250101000001_setup.sql
+CREATE TABLE IF NOT EXISTS urls (
+    id BIGSERIAL PRIMARY KEY,
+    url TEXT NOT NULL,
+    clicks BIGINT NOT NULL DEFAULT 0
+);

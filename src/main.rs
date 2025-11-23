@@ -1,12 +1,12 @@
 mod storage;
 mod base62;
 use storage::{Storage};
-use axum::{
+use shuttle_axum::axum::{
     extract::{State, Path},
     routing::{get, post},
     Json, Router, response::{IntoResponse, Redirect},
     http::StatusCode,
-    http::Method,
+    http::HeaderMap,
 };
 use serde::{Deserialize, Serialize};
 mod db;
@@ -14,9 +14,8 @@ use db::PostgresStorage;
 use url::Url;
 mod error;
 use error::AppError;
-use dotenvy::dotenv;
 use std::env;
-use tower_http::cors::{CorsLayer, Any};
+use sqlx::PgPool;
 
 #[derive(Deserialize)]
 struct CreateRequest{
@@ -28,14 +27,19 @@ struct CreateResponse{
     slug: String,
 }
 
-async fn create_slug(State(storage): State<PostgresStorage>, Json(payload): Json<CreateRequest>) -> Result<impl IntoResponse, AppError>{
+async fn create_slug(State(storage): State<PostgresStorage>, headers: HeaderMap, Json(payload): Json<CreateRequest>) -> Result<impl IntoResponse, AppError>{
 
     let valid_url = validate_and_sanitize_url(&payload.url)
         .map_err(AppError::BadRequest)?;
 
     let id = storage.shorten(&valid_url).await?;
 
-    let slug = format!("http://localhost:3000/{}", id);
+    let host = headers
+        .get("host")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("localhost:8000");
+
+    let slug = format!("http://{}/{}", host, id);
 
     let response = CreateResponse {slug};
     Ok((StatusCode::CREATED, Json(response)).into_response())
@@ -84,28 +88,22 @@ async fn get_url_stats(
 
 
 
-#[tokio::main]
-async fn main(){
+#[shuttle_runtime::main]
+async fn main(
+    #[shuttle_shared_db::Postgres] pool: PgPool,
+) -> shuttle_axum::ShuttleAxum {
 
-    dotenv().ok();
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .expect("Failed to run migrations");
+    let storage = PostgresStorage { pool }; 
 
-    let cors = CorsLayer::new()
-    .allow_origin(Any)
-    .allow_methods([Method::GET, Method::POST])
-    .allow_headers(Any);
+    let app = Router::new()
+        .route("/api/shorten", post(create_slug))
+        .route("/{id}", get(redirect))
+        .route("/{id}/stats", get(get_url_stats))
+        .with_state(storage);
 
-    let db_url = env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set in .env file");
-
-    let port = env::var("PORT")
-        .unwrap_or_else(|_| "3000".to_string());
-
-    let storage = PostgresStorage::new(&db_url).await;
-
-    let app = Router::new().route("/", post(create_slug)).route("/:id", get(redirect)).route("/:id/stats", get(get_url_stats)).with_state(storage).layer(cors);
-
-    let listner = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await.unwrap();
-
-    print!("Server chalu at http://0.0.0.0:{}", port);
-    axum::serve(listner, app).await.unwrap();
+    Ok(app.into())
 }

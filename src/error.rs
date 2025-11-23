@@ -1,4 +1,4 @@
-use axum::{
+use shuttle_axum::axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,

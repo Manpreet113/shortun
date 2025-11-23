@@ -1,28 +1,12 @@
 use crate::storage::Storage;
 use crate::base62;
 use async_trait::async_trait;
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres, Row};
+use sqlx::{ Pool, Postgres, Row};
 use crate::error::AppError;
 
 #[derive(Clone)]
 pub struct PostgresStorage{
-    pool: Pool<Postgres>,
-}
-
-impl PostgresStorage {
-    pub async fn new(db_url: &str) -> Self{
-        let pool = PgPoolOptions::new()
-            .max_connections(5)
-            .connect(db_url)
-            .await.expect("Failed to connect to Database");
-
-        sqlx::query("CREATE TABLE IF NOT EXISTS urls (
-                id BIGSERIAL PRIMARY KEY, 
-                url TEXT NOT NULL
-            )").execute(&pool).await.expect("Failed to initialize DB table");
-
-        Self { pool }
-    }
+    pub pool: Pool<Postgres>,
 }
 
 #[async_trait]
