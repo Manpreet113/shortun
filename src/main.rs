@@ -16,6 +16,7 @@ mod error;
 use error::AppError;
 use std::env;
 use sqlx::PgPool;
+use tower_http::cors::CorsLayer;
 
 #[derive(Deserialize)]
 struct CreateRequest{
@@ -103,7 +104,8 @@ async fn main(
         .route("/api/shorten", post(create_slug))
         .route("/{id}", get(redirect))
         .route("/{id}/stats", get(get_url_stats))
-        .with_state(storage);
+        .with_state(storage)
+        .layer(CorsLayer::permissive()); // Permissive cause it ain't no prod. i just want it up, sowwy
 
     Ok(app.into())
 }
