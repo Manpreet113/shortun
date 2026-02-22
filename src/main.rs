@@ -15,6 +15,8 @@ use url::Url;
 mod error;
 use error::AppError;
 use std::env;
+use axum::http::header::CONTENT_TYPE;
+use axum::http::Method;
 use tower_http::cors::CorsLayer;
 
 #[derive(Deserialize)]
@@ -91,6 +93,14 @@ async fn get_url_stats(
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
+
+    let frontend_url = std::env::var("FRONTEND_URL")
+        .unwrap_or_else(|_| "http://localhost:5173".to_string());
+
+    let cors = CorsLayer::new()
+        .allow_origin(frontend_url.parse::<axum::http::HeaderValue>().expect("Invalid FRONTEND_URL"))
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([CONTENT_TYPE]);
     
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     
@@ -108,12 +118,15 @@ async fn main() {
 
     let app = Router::new()
         .route("/api/shorten", post(create_slug))
-        .route("/{id}", get(redirect))
-        .route("/{id}/stats", get(get_url_stats))
+        .route("/:id", get(redirect))
+        .route("/:id/stats", get(get_url_stats))
         .with_state(storage)
-        .layer(CorsLayer::permissive()); // Permissive cause it ain't no prod. i just want it up, sowwy
+        .layer(cors);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
-    println!("Listening on port 8000");
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8000".to_string());
+    let addr = format!("0.0.0.0:{}", port);
+
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    println!("Listening on {}", addr);
     axum::serve(listener, app).await.unwrap();
 }
