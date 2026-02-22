@@ -1,7 +1,7 @@
 mod storage;
 mod base62;
 use storage::{Storage};
-use shuttle_axum::axum::{
+use axum::{
     extract::{State, Path},
     routing::{get, post},
     Json, Router, response::{IntoResponse, Redirect},
@@ -89,10 +89,17 @@ async fn get_url_stats(
 
 
 
-#[shuttle_runtime::main]
-async fn main(
-    #[shuttle_shared_db::Postgres] pool: PgPool,
-) -> shuttle_axum::ShuttleAxum {
+#[tokio::main]
+async fn main() {
+    dotenvy::dotenv().ok();
+    
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await
+        .expect("Failed to connect to Postgres");
 
     sqlx::migrate!()
         .run(&pool)
@@ -107,5 +114,7 @@ async fn main(
         .with_state(storage)
         .layer(CorsLayer::permissive()); // Permissive cause it ain't no prod. i just want it up, sowwy
 
-    Ok(app.into())
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
+    println!("Listening on port 8000");
+    axum::serve(listener, app).await.unwrap();
 }
