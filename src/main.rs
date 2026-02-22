@@ -15,7 +15,6 @@ use url::Url;
 mod error;
 use error::AppError;
 use std::env;
-use sqlx::PgPool;
 use tower_http::cors::CorsLayer;
 
 #[derive(Deserialize)]
