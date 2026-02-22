@@ -118,8 +118,8 @@ async fn main() {
 
     let app = Router::new()
         .route("/api/shorten", post(create_slug))
-        .route("/:id", get(redirect))
-        .route("/:id/stats", get(get_url_stats))
+        .route("/{id}", get(redirect))
+        .route("/{id}/stats", get(get_url_stats))
         .with_state(storage)
         .layer(cors);
 
